@@ -1,0 +1,266 @@
+---
+title: "EX3-Massive"
+output: html_notebook
+---
+
+
+
+```{r}
+
+pkgs <- c("factoextra",  "NbClust", "kableExtra", "FactoMineR")
+install.packages(pkgs)
+install.packages("leaflet")
+```
+
+
+
+
+```{r}
+library(kableExtra)
+library(tidyverse)
+library(NbClust)
+library(ggplot2)
+library(factoextra)
+library(cluster)
+library(FactoMineR)
+library(leaflet)
+```
+
+
+```{r}
+load("EXAM/velib.Rdata")
+```
+
+```{r}
+summary(velib) |> kable() |> kable_styling()
+```
+#Plot:
+```{r}
+plot(velib$position)
+plot(velib$bonus)
+#(velib$data) to large to plot
+
+```
+
+#Verify NA and duplicates variables:
+```{r}
+sum(is.na(velib$data) == TRUE)
+sum(is.na(velib$position) == TRUE)
+sum(is.na(velib$dates) == TRUE)
+sum(is.na(velib$bonus) == TRUE)
+anyDuplicated(velib$names)
+
+```
+
+#3.3 Data visualization
+# Data visualization :Principal components analysis PCA:
+PCA is usefull when we have a dataset with multiple variable.
+For our bikes dataset it's  usefull 
+```{r}
+data(velib)
+head(velib, 4)
+```
+
+```{r}
+dat = velib$data
+```
+
+```{r}
+options(max.print = 100)
+summary(dat)
+```
+#PCA
+```{r}
+#construct the principal component 'princomp'
+P_comp = princomp(dat, scale= TRUE)
+P_comp
+
+```
+```{r}
+plot(P_comp,main = "variables")
+```
+```{r}
+summary(P_comp)
+```
+```{r}
+plot(P_comp, type ="l")
+```
+```{r}
+Plt.pca <- PCA(dat, graph= FALSE)
+fviz_screeplot(Plt.pca, addlabels = TRUE, ylim = c(0, 45))
+```
+
+
+The plot shows the contribution of the variables and first 3 variables has the highest variances so that mean they have more impact than others.
+```{r}
+biplot(P_comp, scale = 0)
+```
+First we can see that we have so much point (HD Data) + The biplot shows again the contribution the first comp.
+
+
+```{r}
+#Extract first comps:
+str(P_comp)
+P_comp$scores
+
+```
+
+
+
+
+
+```{r}
+plot(predict(P_comp),type = 'p',pch = 19)
+```
+
+
+
+
+#3.4 Clustering
+#3.4.1 Hierarchical clustering
+Apply the hierarchical clustering with appropriate distance, choose the right number of cluster
+and comment the results. A map of the results may be obtained using the GPS coordinates of
+the stations, thanks to the leaflet package:
+
+palette = colorFactor("RdYlBu", domain = NULL)
+leaflet(X) %>% addTiles() %>%
+addCircleMarkers(radius = 3,
+color = palette(clusters),
+stroke = FALSE, fillOpacity = 0.9)
+
+## NBCLUST
+NbClust package provides 30 indices for determining the number of clusters and proposes to user the best clustering scheme from the different results obtained by varying all combinations of number of clusters, distance measures, and clustering methods.
+
+before applying the hclust method we need to define the cluster number. to do that --> we going to use the nbclust.
+
+let's first have a look on a dendregrams:
+
+#HCLUST with severals methods:
+```{r}
+#Dissimilarity matrix
+d <-dist(dat, method = "euclidean")
+#Hierarchical clustering with complete,single, average and ward methods:
+hc1<- hclust(d, method= "complete")
+hc2<- hclust(d, method= "single")
+hc3<- hclust(d, method= "average")
+hc4<- hclust(d, method= "ward.D2")
+plot(hc1, cex = 0.6)
+plot(hc2, cex = 0.6)
+plot(hc3, cex = 0.6)
+plot(hc4, cex = 0.6)
+```
+we see that we have so much data, and it's not easy to visualize data.
+Let's define K.
+we can also see that the more readable dendrograms are the complete and average one.
+
+
+#NB Clust with Hclust (Complete method)------------
+
+```{r}
+
+
+NbClust(data= dat, diss = NULL, distance = "euclidean",
+                  min.nc = 2, max.nc = 9, 
+                  method = "complete", index ="all", alphaBeale = 0.1)
+
+# According to the majority rule, the best number of clusters with complete method is  3 
+```
+
+
+```{r}
+#Set cluster to K=3 for hclust:
+
+d <-dist(dat, method = "euclidean")
+#Hierarchical clustering with complete method
+hc1<- hclust(d, method= "complete")
+#set cluster to 3:
+fviz_cluster(list(data=dat, cluster =cutree(hc1, k=3)), labelsize = 8)
+```
+Having 3 clusters for each methods, show that we have 3 categories of bike's station's.
+That's probably correspond to the area of parking. It can be a workspace area, outside center area or touristic area...
+
+
+
+
+#A map of the results may be obtained using the GPS coordinates of the stations, thanks to the leaflet package:
+```{r}
+out.hc_C = hclust(d, method= "complete")
+out.hc_3 = cutree(hclust(d,method = "complete"),k = 3) 
+ 
+palette = colorFactor("RdYlBu", domain = NULL)
+leaflet(velib$position) %>% addTiles() %>%
+addCircleMarkers(radius = 3,
+color = palette(out.hc_3),   
+stroke = FALSE, fillOpacity = 0.9)
+```
+There is 3 colors in map corresponding to the 3 categories: The yellow shows the center of paris, Orange represent out of center and the blue it's maybe work zone. 
+
+
+#3.4.2 k-means:
+Apply now the k-means clustering on the same data. Choose also the right number of clusters
+using the appropriate technique. Comment and compare with the result obtained with the
+hierarchical clustering
+
+in this section to find the optimum number of cluster, we going to use the factoextra package
+```{r}
+
+fviz_nbclust(dat, kmeans, method="wss")
+fviz_nbclust(dat, kmeans, method="silhouette")
+```
+The optimal number of cluster using K-means methos is 2.
+
+#Let's set K=2
+```{r}
+out.kmeans = kmeans(dat,2)
+```
+
+
+```{r}
+palette = colorFactor("RdYlBu", domain = NULL)
+
+leaflet(velib$position) %>% addTiles() %>%
+addCircleMarkers(radius = 3,
+color = palette(out.kmeans$cluster),
+stroke = FALSE, fillOpacity = 0.9)
+```
+
+```{r}
+table(out.kmeans$cluster)
+```
+
+
+when we work with High Dimensional data, K-means it's not really the best way to determine the nb of clusters.
+
+In order to compare the K-means and Hclust method, i'm going to set the K=3 for both methods:
+```{r}
+out.kmeans3 = kmeans(dat,3)
+
+palette = colorFactor("RdYlBu", domain = NULL)
+
+leaflet(velib$position) %>% addTiles() %>%
+addCircleMarkers(radius = 3,
+color = palette(out.kmeans3$cluster),
+stroke = FALSE, fillOpacity = 0.9)
+```
+
+For K=3 the clusters are almost same.
+
+
+##3.5 Summary
+It is expected a final summary of all information extracted during the analysis:
+
+
+
+This dataset contains huge amount of information, so does not make working on it easy.
+The visualization of plots and dendrograms are not easy too. Thanks to PCA, I understand the contribution of variables. 
+
+The two clustering methods that we where asked to do, gives me 2 differents numbers of clusters.
+I had k=3 for hierarchical clustering and K=2 for K-means clustering.
+
+as we know one of disvantage of k-means is that's not adapted for high dimensional data.
+The PCA can helps us to reduce data before applying K-means, but by reducing the dimensions of data, we can also loss informations.
+
+The points on map are not similar too. I think that we need to concentrate on this study by using HC.
+
+
+
